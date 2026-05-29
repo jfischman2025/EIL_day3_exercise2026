@@ -12,6 +12,7 @@ library(ggplot2)
 library(rnaturalearth)
 library(rnaturalearthdata)
 library(sf)
+library(ggrepel)
 
 #setwd
 setwd("/Users/jfischman/Library/CloudStorage/Dropbox/Josie/Github/Untitled/EIL_day3_exercise2026/day3_exercise")
@@ -283,7 +284,7 @@ g08 <- ggplot(le_trend, aes(x = year, y = mean_le)) +
   geom_line(color = "#4e7a6b") +
   geom_point(size = 1.5, color = "#4e7a6b") +
   labs(x = NULL, y = "Mean Life Expectancy (years)",
-       title = "Global Mean Life Expectancy, 1990–2019") +
+       title = "Global Mean Life Expectancy, 1990–2023") +
   theme_minimal(base_size = 9)
 
 ggsave(plot = g08, "results/08_le_global_mean_trend.png",
@@ -330,3 +331,86 @@ g10 <- ggplot(df_decades |> drop_na(life_exp),
 
 ggsave(plot = g10, "results/10_le_decade_density.png",
        width = 8, height = 5, dpi = 300)
+
+# ── combined PM2.5 + life expectancy figures ─────────────────────────────────
+
+# 11 - Scatter with labeled outliers (2019)
+scatter_df <- df_2019 |> drop_na(pm2.5, life_exp)
+fit <- lm(life_exp ~ pm2.5, data = scatter_df)
+scatter_df <- scatter_df |>
+  mutate(resid = abs(residuals(fit))) |>
+  mutate(label = ifelse(resid > quantile(resid, 0.93), country, NA))
+
+g11 <- ggplot(scatter_df, aes(x = pm2.5, y = life_exp)) +
+  geom_point(size = 1.5, alpha = 0.5, color = "#4e6b8c") +
+  geom_smooth(method = "lm", se = FALSE, color = "#8c4e4e",
+              linewidth = 0.7) +
+  geom_text_repel(aes(label = label), size = 2.5, max.overlaps = 20) +
+  labs(x = "PM2.5 (µg/m³)", y = "Life Expectancy (years)",
+       title = "PM2.5 vs. Life Expectancy, 2019") +
+  theme_minimal(base_size = 9)
+
+ggsave(plot = g11, "results/11_scatter_labeled_2019.png",
+       width = 8, height = 6, dpi = 300)
+
+
+# 13 - Change in PM2.5 vs. change in life expectancy per country
+both_change <- inner_join(df_change_pm, df_change_le,
+                          by = c("iso3c", "country")) |>
+  drop_na(pm25_change, le_change)
+
+g13 <- ggplot(both_change, aes(x = pm25_change, y = le_change)) +
+  geom_point(size = 1.5, alpha = 0.5, color = "#4e6b8c") +
+  geom_smooth(method = "lm", se = FALSE, color = "#8c4e4e",
+              linewidth = 0.7) +
+  geom_hline(yintercept = 0, linetype = "dotted", color = "grey60") +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "grey60") +
+  labs(x = "Change in PM2.5 (µg/m³)",
+       y = "Change in Life Expectancy (years)",
+       title = "Change in PM2.5 vs. Life Expectancy, 1990–2019") +
+  theme_minimal(base_size = 9)
+
+ggsave(plot = g13, "results/13_joint_change_scatter.png",
+       width = 8, height = 6, dpi = 300)
+
+# 14 - Selected countries' paths in PM2.5/life expectancy space over time
+path_df <- df |>
+  filter(iso3c %in% c("USA", "CHN", "IND", top1_code, bottom1_code),
+         year >= 1990) |>
+  drop_na(pm2.5, life_exp)
+
+g14 <- ggplot(path_df, aes(x = pm2.5, y = life_exp, color = country)) +
+  geom_path(arrow = arrow(length = unit(0.15, "cm"), type = "closed"),
+            linewidth = 0.7) +
+  geom_point(data = path_df |> filter(year == 1990), size = 2) +
+  scale_color_manual(values = c("#4e6b8c", "#8c4e4e", "#6b8c4e",
+                                "#7a5c8c", "#8c7a4e")) +
+  labs(x = "PM2.5 (µg/m³)", y = "Life Expectancy (years)",
+       color = NULL,
+       title = "PM2.5 vs. Life Expectancy Trajectories, 1990–2019",
+       caption = "Dots mark 1990; arrows show direction of change") +
+  theme_minimal(base_size = 9) +
+  theme(legend.position = "bottom")
+
+ggsave(plot = g14, "results/14_country_paths.png",
+       width = 8, height = 6, dpi = 300)
+
+# 15 - Global mean PM2.5 vs. global mean life expectancy connected scatter
+global_means <- df |>
+  filter(year >= 1990) |>
+  group_by(year) |>
+  summarise(mean_pm25 = mean(pm2.5, na.rm = TRUE),
+            mean_le   = mean(life_exp, na.rm = TRUE))
+
+g15 <- ggplot(global_means, aes(x = mean_pm25, y = mean_le)) +
+  geom_path(arrow = arrow(length = unit(0.2, "cm"), type = "closed"),
+            color = "#4e6b8c", linewidth = 0.7) +
+  geom_point(size = 1.5, color = "#4e6b8c") +
+  geom_text_repel(aes(label = year), size = 2.5, max.overlaps = 10) +
+  labs(x = "Mean PM2.5 (µg/m³)", y = "Mean Life Expectancy (years)",
+       title = "Global Mean PM2.5 vs. Life Expectancy, 1990–2019",
+       caption = "Each point is one year; arrow shows direction over time") +
+  theme_minimal(base_size = 9)
+
+ggsave(plot = g15, "results/15_global_mean_path.png",
+       width = 8, height = 6, dpi = 300)

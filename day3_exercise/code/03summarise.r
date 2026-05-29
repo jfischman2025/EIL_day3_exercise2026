@@ -8,6 +8,7 @@
 # load libraries
 library(tidyverse)
 library(WDI)
+library(xtable)
 
 #setwd
 setwd("/Users/jfischman/Library/CloudStorage/Dropbox/Josie/Github/Untitled/EIL_day3_exercise2026/day3_exercise")
@@ -35,4 +36,28 @@ le_sum <- df |> summarise(
 # save tables to results
 write.csv(pm_sum, "results/pm25_summary.csv", row.names=FALSE)
 write.csv(le_sum, "results/le_summary.csv", row.names=FALSE)
+
+# combine into one table for latex
+combined_sum <- bind_rows(
+  pm_sum |> mutate(variable = "PM2.5 (µg/m³)", .before = mean),
+  le_sum |> mutate(variable = "Life Expectancy (years)", .before = mean)
+) |>
+  rename(
+    Variable = variable,
+    Mean     = mean,
+    SD       = sd,
+    Min      = min,
+    Max      = max,
+    N        = num
+  )
+
+print(
+  xtable(combined_sum,
+         caption = "Summary Statistics",
+         label   = "tab:summary",
+         digits  = c(0, 0, 2, 2, 2, 2, 0)),
+  include.rownames  = FALSE,
+  caption.placement = "top",
+  file = "results/summary_stats.tex"
+)
 
